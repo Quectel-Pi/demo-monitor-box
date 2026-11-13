@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>监控盒子</title>
+  <link rel="icon" type="image/png" href="/app-icon.png">
+  <link rel="preload" href="/fonts/noto-sans-sc-400.woff2?v=5.2.8" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="app">
+  <aside class="rail" aria-label="主导航">
+    <div class="brand"><img class="brand-mark" src="/app-icon.png" alt="监控盒子图标"><span class="brand-text">监控盒子</span></div>
+    <nav class="nav">
+      <button class="nav-btn active" data-view="live"><span>实时</span><small>Live</small></button>
+      <button class="nav-btn" data-view="events"><span>事件</span><small>Events</small></button>
+      <button class="nav-btn" data-view="regions"><span>区域</span><small>Regions</small></button>
+      <button class="nav-btn" data-view="ground"><span>鸟瞰</span><small>Ground</small></button>
+      <button class="nav-btn" data-view="settings"><span>设置</span><small>Settings</small></button>
+      <button class="nav-btn" data-view="status"><span>状态</span><small>Status</small></button>
+    </nav>
+    <div class="rail-foot"><span id="conn-dot" class="dot offline"></span><span id="conn-text">正在连接</span></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="title-wrap"><h1 id="page-title">实时监控</h1><p id="page-subtitle">摄像头画面、告警和运行概况</p></div>
+      <div class="top-actions">
+        <label class="language-control">语言
+          <select id="web-language" aria-label="Web 界面语言">
+            <option value="zh_CN">中文</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <label class="mode-control">模式
+          <select id="power-mode">
+            <option value="normal">正常</option>
+            <option value="eco">节能</option>
+            <option value="standby">待机</option>
+          </select>
+        </label>
+        <button id="power-apply" class="btn secondary">应用</button>
+        <button id="theme-toggle" class="btn ghost" title="切换明暗主题">深色</button>
+        <button id="refresh-all" class="btn ghost" title="刷新全部数据">刷新</button>
+      </div>
+    </header>
+
+    <div id="global-alert" class="global-alert hidden"></div>
+
+    <section id="view-live" class="view active">
+      <div class="live-layout">
+        <article class="card player-card">
+          <div class="player-head">
+            <div><strong>实时画面</strong><span id="live-caption" class="muted">MJPEG · 高清预览</span></div>
+            <div class="live-dot-wrap"><span class="dot live"></span><span id="live-state">在线</span></div>
+          </div>
+          <div class="stream-wrap">
+            <img id="live-stream" src="/stream" alt="实时监控画面">
+            <canvas id="heat-layer" class="heat-layer hidden"></canvas>
+            <div id="standby-overlay" class="standby-overlay hidden"><strong>摄像头已关闭</strong><span>设备处于待机省电状态</span></div>
+            <div class="stream-hud" id="stream-hud">读取状态中…</div>
+          </div>
+          <div id="view-alert" class="view-alert hidden">
+            <div><strong>画面可能被移动</strong><p id="view-alert-text"></p></div>
+            <div class="inline-actions">
+              <button class="btn small secondary" data-view-action="ack">稍后</button>
+              <button class="btn small" data-view-action="undo">撤销自动跟随</button>
+              <button class="btn small secondary" data-view-action="accept">画面正常</button>
+            </div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><span>采集</span><strong id="m-capture">—</strong><small>fps</small></div>
+            <div class="metric"><span>AI</span><strong id="m-ai">—</strong><small>ms</small></div>
+            <div class="metric"><span>轨迹</span><strong id="m-tracks">—</strong><small>targets</small></div>
+            <div class="metric"><span>端到端</span><strong id="m-latency">—</strong><small>ms</small></div>
+          </div>
+        </article>
+
+        <div class="right-stack">
+          <article class="card compact-card">
+            <div class="card-title"><h2>设备概况</h2><span id="power-badge" class="badge">正常</span></div>
+            <dl class="info-list">
+              <div><dt>摄像头</dt><dd id="camera-state">—</dd></div>
+              <div><dt>分辨率</dt><dd id="camera-size">—</dd></div>
+              <div><dt>推理</dt><dd id="infer-state">—</dd></div>
+              <div><dt>H.264</dt><dd id="h264-state">—</dd></div>
+              <div><dt>事件</dt><dd id="event-count">—</dd></div>
+            </dl>
+          </article>
+          <article class="card compact-card">
+            <div class="card-title"><h2>人数统计</h2><button id="reset-counts" class="btn tiny ghost">清零</button></div>
+            <div id="counts-list" class="simple-list"><span class="muted">暂无计数线</span></div>
+          </article>
+          <article class="card compact-card">
+            <div class="card-title"><h2>最近事件</h2><button class="btn tiny ghost" data-goto="events">全部</button></div>
+            <div id="recent-events" class="event-mini-list"><span class="muted">暂无事件</span></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-events" class="view">
+      <div class="section-head">
+        <div><h2>告警事件</h2><p id="events-summary" class="muted">加载中…</p></div>
+        <div class="inline-actions">
+          <select id="event-level"><option value="">全部级别</option><option value="critical">紧急</option><option value="warning">告警</option><option value="info">信息</option></select>
+          <button id="events-refresh" class="btn secondary">刷新</button>
+          <button id="events-delete" class="btn danger" disabled>删除所选</button>
+        </div>
+      </div>
+      <article class="card table-card">
+        <div class="table-scroll">
+          <table class="data-table events-table">
+            <thead><tr><th><input id="events-all" type="checkbox" aria-label="全选"></th><th>时间</th><th>级别</th><th>功能 / 类型</th><th>目标</th><th>快照</th><th>录像</th><th></th></tr></thead>
+            <tbody id="events-body"><tr><td colspan="8" class="empty-row">加载中…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="pager"><button id="events-newer-page" class="btn ghost" disabled>回到最新</button><span id="events-page-label">第 1 页</span><button id="events-older-page" class="btn ghost">更早事件</button></div>
+      </article>
+    </section>
+
+    <section id="view-regions" class="view">
+      <div class="region-layout">
+        <article class="card region-canvas-card">
+          <div class="draw-toolbar">
+            <button id="draw-region" class="btn secondary">画区域</button>
+            <button id="draw-line" class="btn secondary">画进出线</button>
+            <button id="draw-ground" class="btn secondary">画地面标定</button>
+            <button id="draw-gzone" class="btn secondary">画地面区域</button>
+            <span class="toolbar-gap"></span>
+            <button id="draw-finish" class="btn" disabled>完成</button>
+            <button id="draw-undo" class="btn ghost" disabled>撤销一点</button>
+            <button id="draw-cancel" class="btn ghost" disabled>取消</button>
+            <button id="regions-save" class="btn primary" disabled>保存区域</button>
+          </div>
+          <div id="editor-stage" class="editor-stage">
+            <img id="editor-image" alt="区域编辑底图">
+            <canvas id="editor-canvas"></canvas>
+            <div id="editor-loading" class="editor-loading">正在加载底图…</div>
+          </div>
+          <div class="canvas-caption">
+            <span id="draw-hint">点选区域或线后可拖动顶点；拖区域内部可整体上下左右移动，方向键可微调。</span>
+            <span class="heat-tools">
+              <label><input id="show-heatmap" type="checkbox"> 显示热图</label>
+              <label><input id="heat-learning" type="checkbox"> 学习中</label>
+              <button id="heat-suggest" class="btn tiny secondary">热图推荐</button>
+              <button id="heat-clear" class="btn tiny ghost">清空热图</button>
+            </span>
+          </div>
+        </article>
+        <aside class="card region-side">
+          <div class="card-title"><h2>区域与线</h2><span id="region-count" class="badge">—</span></div>
+          <div id="region-list" class="region-list"></div>
+          <div id="region-inspector" class="inspector"><p class="muted">选择一个区域、线或地面区域进行编辑。</p></div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-ground" class="view">
+      <div class="ground-layout">
+        <article class="card bev-card">
+          <div class="section-head tight"><div><h2>鸟瞰图</h2><p id="bev-caption" class="muted">等待定位数据</p></div><div class="inline-actions"><button id="ground-reset" class="btn small ghost">清零统计</button></div></div>
+          <canvas id="bev-canvas"></canvas>
+          <div id="ground-legend" class="bev-legend"></div>
+        </article>
+        <aside class="ground-side">
+          <article class="card compact-card"><div class="card-title"><h2>标定质量</h2><span id="calib-grade" class="badge">—</span></div><div id="ground-summary" class="details-list compact-details"></div></article>
+          <article class="card compact-card"><div class="card-title"><h2>地面区域</h2><button id="ground-add-zone" class="btn tiny secondary">新增</button></div><div id="ground-zone-list" class="simple-list compact-list"></div></article>
+          <article class="card compact-card"><div class="card-title"><h2>目标</h2><span id="ground-target-count" class="badge">0</span></div><div id="ground-targets" class="simple-list compact-list"></div></article>
+          <article class="card compact-card"><div class="card-title"><h2>设备位置</h2><button id="geo-refresh" class="btn tiny secondary" data-i18n-skip>立即定位</button></div><div id="geo-summary" class="details-list compact-details"></div></article>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-settings" class="view">
+      <div class="settings-grid">
+        <nav class="settings-nav card">
+          <button class="settings-link active" data-settings="general">常规</button>
+          <button class="settings-link" data-settings="detection">检测与音频</button>
+          <button class="settings-link" data-settings="video">视频与推理</button>
+          <button class="settings-link" data-settings="display">显示</button>
+          <button class="settings-link" data-settings="ground">地面定位</button>
+          <button class="settings-link" data-settings="events">事件与存储</button>
+          <button class="settings-link" data-settings="advanced">高级 JSON</button>
+        </nav>
+        <div class="settings-content">
+          <section class="settings-pane card active" data-pane="general">
+            <div class="pane-head"><h2>常规</h2><p>设备名称、功耗模式和应用偏好。</p></div>
+            <div class="form-grid">
+              <label class="field"><span>设备名称</span><input data-cfg="device.name" type="text"></label>
+              <label class="field"><span>日志级别</span><select data-cfg="device.log_level"><option>debug</option><option>info</option><option>warning</option><option>error</option></select></label>
+              <label class="field"><span>工作模式</span><select data-cfg="power.mode"><option value="normal">正常</option><option value="eco">节能</option><option value="standby">待机（关闭摄像头）</option></select></label>
+              <label class="field"><span>界面语言（Web / APP）</span><select id="settings-language" data-cfg="app.language"><option value="zh_CN">简体中文</option><option value="en">English</option></select></label>
+            </div>
+            <div id="feature-switches" class="switch-grid"></div>
+            <div class="form-grid three">
+              <label class="field"><span>滞留告警时间（秒）</span><input data-cfg="features.dwell.dwell_sec" type="number" min="1" max="86400"></label>
+              <label class="field"><span>包裹静止时间（秒）</span><input data-cfg="features.package.static_sec" type="number" min="1" max="86400"></label>
+              <label class="field"><span>越线计数清零周期（小时）</span><input data-cfg="features.count.reset_hours" type="number" min="0" max="168"></label>
+            </div>
+            <div class="pane-actions"><button id="settings-general-save" class="btn primary">保存常规设置</button></div>
+          </section>
+
+          <section class="settings-pane card" data-pane="detection">
+            <div class="pane-head"><h2>检测与音频</h2><p>检测功能开关和事件声音。区域绑定在“区域”页面完成。</p></div>
+            <div id="audio-switches" class="switch-grid"></div>
+            <div class="form-grid three">
+              <label class="field"><span>推理帧率</span><input data-cfg="infer.infer_fps" type="number" min="1" max="60"></label>
+              <label class="field"><span>置信度阈值</span><input data-cfg="infer.conf_threshold" type="number" min="0" max="1" step="0.01"></label>
+              <label class="field"><span>NMS 阈值</span><input data-cfg="infer.nms_threshold" type="number" min="0" max="1" step="0.01"></label>
+              <label class="field"><span>跟踪缓存帧</span><input data-cfg="track.track_buffer" type="number" min="1"></label>
+              <label class="field"><span>轨迹关联阈值</span><input data-cfg="track.match_threshold" type="number" min="0" max="1" step="0.01"></label>
+              <label class="field"><span>ID 接续距离</span><input data-cfg="track.relink_dist" type="number" min="0" step="0.05"></label>
+            </div>
+            <div class="pane-actions"><button id="settings-detection-save" class="btn primary">保存检测设置</button></div>
+          </section>
+
+          <section class="settings-pane card" data-pane="video">
+            <div class="pane-head"><h2>视频与推理</h2><p>摄像头参数、模型路径和热点图统计。模型或摄像头改动通常需要重启。</p></div>
+            <div class="form-grid three">
+              <label class="field"><span>摄像头节点</span><input data-cfg="video.device" type="text"></label>
+              <label class="field"><span>采集宽度</span><input data-cfg="video.width" type="number"></label>
+              <label class="field"><span>采集高度</span><input data-cfg="video.height" type="number"></label>
+              <label class="field"><span>采集帧率</span><input data-cfg="video.fps" type="number"></label>
+              <label class="field"><span>像素格式</span><input data-cfg="video.pixel_format" type="text"></label>
+              <label class="field"><span>缓冲帧数</span><input data-cfg="video.buffers" type="number"></label>
+              <label class="field wide"><span>检测模型</span><input data-cfg="infer.model" type="text"></label>
+              <label class="field wide"><span>标签文件</span><input data-cfg="infer.labels" type="text"></label>
+              <label class="field wide"><span>姿态模型</span><input data-cfg="models.pose.path" type="text"></label>
+              <label class="field wide"><span>火焰模型</span><input data-cfg="models.fire.path" type="text"></label>
+              <label class="field wide"><span>火焰标签</span><input data-cfg="models.fire.labels" type="text"></label>
+              <label class="field"><span>Web 预览宽度</span><input data-cfg="web.stream_width" type="number" min="320" max="1920"></label>
+              <label class="field"><span>Web 预览高度</span><input data-cfg="web.stream_height" type="number" min="180" max="1080"></label>
+              <label class="field"><span>Web 预览帧率</span><input data-cfg="web.stream_fps" type="number" min="1" max="30"></label>
+              <label class="field"><span>Web JPEG 质量</span><input data-cfg="web.stream_jpeg_quality" type="number" min="30" max="100"></label>
+            </div>
+            <div class="pane-actions"><button id="settings-video-save" class="btn primary">保存视频设置</button></div>
+          </section>
+
+          <section class="settings-pane card" data-pane="display">
+            <div class="pane-head"><h2>显示</h2><p>这些开关影响 OSD、快照、录像以及 Web 预览。</p></div>
+            <div class="toggle-list">
+              <label class="toggle-row"><span><strong>视频内性能指标</strong><small>FRAME / DET / TRK / AI 信息条</small></span><input type="checkbox" data-cfg="display.show_metrics"></label>
+              <label class="toggle-row"><span><strong>底部视频状态</strong><small>APP 的状态卡显示</small></span><input type="checkbox" data-cfg="display.show_stream_status"></label>
+              <label class="toggle-row"><span><strong>实时热图</strong><small>在 APP/Web 画面上显示活动热图</small></span><input type="checkbox" data-cfg="display.show_heatmap"></label>
+              <label class="toggle-row"><span><strong>隐藏区域与进出线</strong><small>不显示区域填充、区域边框和进出线；检测、计数和告警仍照常运行。</small></span><input type="checkbox" data-cfg="display.hide_region_overlays"></label>
+              <label class="toggle-row"><span><strong>鸟瞰图画中画</strong><small>在监控画面角落叠加地面定位图</small></span><input type="checkbox" data-cfg="display.bev_pip.enabled"></label>
+            </div>
+            <div class="form-grid three">
+              <label class="field"><span>区域填充透明度</span><input data-cfg="display.region_alpha" type="number" min="0" max="1" step="0.05"></label>
+              <label class="field"><span>画中画位置</span><select data-cfg="display.bev_pip.corner"><option value="top_left">左上</option><option value="top_right">右上</option><option value="bottom_left">左下</option><option value="bottom_right">右下</option></select></label>
+              <label class="field"><span>画中画宽度</span><input data-cfg="display.bev_pip.size" type="number" min="0.15" max="0.5" step="0.05"></label>
+            </div>
+            <div class="pane-actions"><button id="settings-display-save" class="btn primary">保存显示设置</button></div>
+          </section>
+
+          <section class="settings-pane card" data-pane="ground">
+            <div class="pane-head"><h2>地面定位与鸟瞰</h2><p>地面标定在“区域”页面绘制；地面区域告警参数在“鸟瞰”页面编辑。</p></div>
+            <div class="toggle-list">
+              <label class="toggle-row"><span><strong>地面定位总开关</strong><small>需要至少一个已绑定的地面标定区域</small></span><input type="checkbox" data-cfg="features.locate.enabled"></label>
+              <label class="toggle-row"><span><strong>自动获取设备经纬度</strong><small>Wi-Fi / IP / 手动来源按顺序尝试</small></span><input type="checkbox" data-cfg="geo.enabled"></label>
+            </div>
+            <div id="geo-providers"></div>
+            <div class="form-grid three">
+              <label class="field"><span>重新定位间隔（分钟）</span><input data-cfg="geo.refresh_min" type="number" min="1" max="1440"></label>
+              <label class="field"><span>定位超时（秒）</span><input data-cfg="geo.timeout_sec" type="number" min="1"></label>
+              <label class="field"><span>Wi-Fi 网卡</span><input data-cfg="geo.wifi_iface" type="text"></label>
+              <label class="field wide"><span>Google API Key（Wi-Fi 定位）</span><input data-cfg="geo.google_api_key" type="password" autocomplete="off"></label>
+              <label class="field"><span>手动纬度</span><input id="geo-lat" type="number" min="-90" max="90" step="0.000001"></label>
+              <label class="field"><span>手动经度</span><input id="geo-lon" type="number" min="-180" max="180" step="0.000001"></label>
+              <label class="field"><span>精度（米）</span><input id="geo-accuracy" type="number" min="1" max="100000"></label>
+              <label class="field wide"><span>地址（可选）</span><input id="geo-address" type="text"></label>
+            </div>
+            <div class="pane-actions"><button id="settings-ground-save" class="btn primary">保存定位设置</button></div>
+          </section>
+
+          <section class="settings-pane card" data-pane="events">
+            <div class="pane-head"><h2>事件与存储</h2><p>告警去抖、冷却、保留策略和录像时长。</p></div>
+            <div class="form-grid three">
+              <label class="field"><span>去抖帧数</span><input data-cfg="events.debounce_frames" type="number" min="1"></label>
+              <label class="field"><span>冷却时间（秒）</span><input data-cfg="events.cooldown_sec" type="number" min="0"></label>
+              <label class="field"><span>快照质量</span><input data-cfg="events.snapshot_jpeg_quality" type="number" min="1" max="100"></label>
+              <label class="field"><span>录像前置（秒）</span><input data-cfg="events.clip_pre_sec" type="number" min="0"></label>
+              <label class="field"><span>录像后置（秒）</span><input data-cfg="events.clip_post_sec" type="number" min="0"></label>
+              <label class="field"><span>最大事件数</span><input data-cfg="events.max_events" type="number" min="1"></label>
+              <label class="field"><span>最大存储（MB）</span><input data-cfg="events.max_storage_mb" type="number" min="1"></label>
+              <label class="field"><span>最小剩余（MB）</span><input data-cfg="events.min_free_mb" type="number" min="0"></label>
+              <label class="field"><span>保存目录</span><input data-cfg="events.snapshot_dir" type="text"></label>
+            </div>
+            <div class="pane-actions"><button id="settings-events-save" class="btn primary">保存事件设置</button></div>
+          </section>
+
+          <section class="settings-pane card" data-pane="advanced">
+            <div class="pane-head"><h2>高级 JSON 配置</h2><p>完整配置会先由后端校验，再原子写盘并热加载。保存前请确认格式。</p></div>
+            <textarea id="advanced-json" class="json-editor" spellcheck="false"></textarea>
+            <div class="pane-actions"><button id="advanced-load" class="btn secondary">重新载入</button><button id="advanced-save" class="btn danger">校验并保存完整配置</button></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-status" class="view">
+      <div class="status-grid">
+        <article class="card"><div class="card-title"><h2>运行状态</h2><span id="status-age" class="badge">—</span></div><div id="status-details" class="details-list"></div></article>
+        <article class="card"><div class="card-title"><h2>事件与录像</h2></div><div id="recording-stats" class="details-list"></div></article>
+        <article class="card"><div class="card-title"><h2>画面稳定</h2></div><div id="view-stats" class="details-list"></div></article>
+        <article class="card"><div class="card-title"><h2>人体滞留</h2></div><div id="dwell-stats" class="details-list"></div></article>
+        <article class="card"><div class="card-title"><h2>配置文件</h2></div><div id="config-stats" class="details-list"></div></article>
+        <article class="card"><div class="card-title"><h2>快捷操作</h2></div><div class="status-actions"><button class="btn secondary" data-goto="events">管理事件</button><button class="btn secondary" data-goto="regions">编辑区域</button><button class="btn secondary" data-goto="settings">修改设置</button></div></article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="event-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
+  <div class="modal-card event-modal-card">
+    <button class="modal-close" data-close-modal="event-modal" aria-label="关闭">×</button>
+    <div id="event-modal-body"></div>
+  </div>
+</div>
+<div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+<script src="/app-i18n.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

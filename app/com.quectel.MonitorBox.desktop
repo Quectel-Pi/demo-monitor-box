@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Monitor Box
+Name[zh_CN]=监控盒子
+GenericName=AI Video Monitor
+GenericName[zh_CN]=AI 视频监控
+Comment=Live view of the UVC camera with on-device NPU detection
+Comment[zh_CN]=USB 摄像头实时画面 + 板载 NPU 检测能力开关
+Exec=monitor-box-app
+Icon=com.quectel.MonitorBox
+Terminal=false
+Categories=AudioVideo;Video;Security;
+Keywords=monitor;camera;ai;npu;监控;摄像头;
+StartupNotify=true
+StartupWMClass=com.quectel.MonitorBox
+X-GNOME-UsesNotifications=true

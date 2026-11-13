@@ -1,0 +1,64 @@
+#!/bin/sh
+# ============================================================================
+#  监控盒子 APP 启动器 (被 com.quectel.MonitorBox.desktop 调用, 也可以手动跑)
+# ----------------------------------------------------------------------------
+#  从 GNOME 桌面点图标时, 会话环境已经是现成的, 这里什么都不用做。
+#
+#  从 adb shell / ssh 手动起时有两个坑, 这里都兜住:
+#    1. 没有（或只有 adb 的 /var/run）XDG_RUNTIME_DIR / WAYLAND_DISPLAY —— 按实际存在的
+#       /run/user/N 补上;
+#    2. 当前是 root —— root 连不上桌面用户的 Wayland socket
+#       (会报 "Authorization required, but no authorization protocol specified"),
+#       所以自动降到该运行时目录的属主去跑。
+# ============================================================================
+set -e
+
+APP_DIR="$(cd "$(dirname "$0")" && pwd)"
+PY="${PYTHON:-python3}"
+
+# ---- 找桌面的运行时目录 ----
+RUNTIME="${XDG_RUNTIME_DIR:-}"
+# adb shell 常把 XDG_RUNTIME_DIR 设成 /var/run, 但桌面 socket 在 /run/user/N。
+# 只有目录里确实有 Wayland 或会话总线时才沿用, 否则重新查找图形会话。
+if [ -n "$RUNTIME" ] && [ ! -S "$RUNTIME/wayland-0" ] && [ ! -S "$RUNTIME/bus" ]; then
+    RUNTIME=""
+fi
+if [ -z "$RUNTIME" ]; then
+    for u in "$(id -u)" 1001 1000; do
+        if [ -d "/run/user/$u" ]; then RUNTIME="/run/user/$u"; break; fi
+    done
+fi
+[ -n "$RUNTIME" ] || { echo "找不到 /run/user/*, 没有图形会话" >&2; exit 1; }
+
+if [ -z "${WAYLAND_DISPLAY:-}" ] && [ -S "$RUNTIME/wayland-0" ]; then
+    WAYLAND_DISPLAY=wayland-0
+    GDK_BACKEND=wayland
+    export WAYLAND_DISPLAY GDK_BACKEND
+fi
+export XDG_RUNTIME_DIR="$RUNTIME"
+
+# 从 adb/SSH 启动时 D-Bus 会话地址通常也不在环境里; 同一运行时目录下可以推出来。
+if [ -S "$RUNTIME/bus" ]; then
+    DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$RUNTIME/bus}"
+    export DBUS_SESSION_BUS_ADDRESS
+fi
+
+# ---- root 降权到桌面用户 ----
+OWNER_UID="$(basename "$RUNTIME")"
+if [ "$(id -u)" = "0" ] && [ "$OWNER_UID" != "0" ]; then
+    OWNER="$(getent passwd "$OWNER_UID" | cut -d: -f1)"
+    if [ -n "$OWNER" ]; then
+        # 把参数逐个单引号转义, 免得带空格/引号的路径被拆开
+        quoted=""
+        for a in "$@"; do
+            quoted="$quoted '$(printf '%s' "$a" | sed "s/'/'\\\\''/g")'"
+        done
+        exec su -s /bin/sh "$OWNER" -c \
+            "XDG_RUNTIME_DIR='$RUNTIME' WAYLAND_DISPLAY='$WAYLAND_DISPLAY' \
+DBUS_SESSION_BUS_ADDRESS='$DBUS_SESSION_BUS_ADDRESS' \
+GDK_BACKEND='${GDK_BACKEND:-wayland}' '$PY' '$APP_DIR/mb_app.py'$quoted"
+    fi
+    echo "警告: 以 root 运行, 可能连不上桌面 (没有可降权的用户)" >&2
+fi
+
+exec "$PY" "$APP_DIR/mb_app.py" "$@"

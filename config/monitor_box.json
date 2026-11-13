@@ -1,0 +1,392 @@
+{
+  "version": 1,
+  "app": {
+    "language": "zh_CN"
+  },
+  "display": {
+    "show_metrics": true,
+    "show_stream_status": true,
+    "show_heatmap": false,
+    "hide_region_overlays": false,
+    "region_alpha": 0.25,
+    "bev_pip": {"enabled": false, "corner": "bottom_left", "size": 0.2}
+  },
+  "geo": {
+    "enabled": true,
+    "providers": ["wifi_google", "ip", "manual"],
+    "refresh_min": 30,
+    "timeout_sec": 10,
+    "wifi_iface": "wlan0",
+    "google_api_key": "",
+    "ip_url": "http://ip-api.com/json/?fields=status,message,lat,lon,city,regionName,country,query",
+    "manual": {"lat": null, "lon": null, "accuracy_m": 50, "address": ""}
+  },
+  "device": {
+    "name": "monitor-box",
+    "log_level": "info"
+  },
+
+  "power": {
+    "mode": "normal",
+    "eco": {
+      "capture_fps": 10,
+      "infer_fps": 4,
+      "pose_fps": 3,
+      "fire_fps": 1
+    },
+    "follow_app": false
+  },
+
+  "video": {
+    "device": "/dev/video73",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "pixel_format": "MJPG",
+    "buffers": 4,
+    "hw_jpeg": false,
+    "controls": {
+      "exposure_dynamic_framerate": 0
+    }
+  },
+
+  "infer": {
+    "model": "/opt/monitor_box/models/yolov8s-640-640.rknn",
+    "labels": "/opt/monitor_box/models/coco_80_labels_list.txt",
+    "core_mask": 0,
+    "infer_fps": 12,
+    "conf_threshold": 0.25,
+    "nms_threshold": 0.45,
+    "use_rga": true
+  },
+
+  "track": {
+    "enabled": true,
+    "track_buffer": 90,
+    "match_threshold": 0.8,
+    "relink_sec": 2.0,
+    "relink_dist": 0.6
+  },
+
+  "web": {
+    "enabled": true,
+    "listen": "0.0.0.0",
+    "port": 8080,
+    "max_clients": 8,
+    "stream_width": 1280,
+    "stream_height": 720,
+    "stream_fps": 15,
+    "stream_jpeg_quality": 85
+  },
+
+  "stream": {
+    "h264": {
+      "enabled": true,
+      "width": 0,
+      "height": 0,
+      "bitrate_kbps": 4000,
+      "gop": 30,
+      "udp_enabled": true,
+      "udp_host": "127.0.0.1",
+      "udp_port": 15004,
+      "mtu": 1400
+    }
+  },
+
+  "events": {
+    "debounce_frames": 5,
+    "cooldown_sec": 30,
+    "audio": {
+      "warning_coalesce_sec": 10,
+      "critical_coalesce_sec": 3,
+      "max_delay_sec": 5,
+      "preempt_lower_priority": true
+    },
+    "snapshot_dir": "/userdata/monitor_box/events",
+    "snapshot_jpeg_quality": 90,
+    "clip_pre_sec": 5,
+    "clip_post_sec": 5,
+    "max_events": 300,
+    "max_storage_mb": 2048,
+    "min_free_mb": 256,
+    "levels": {
+      "fall": "critical",
+      "fire": "critical",
+      "intrusion": "warning",
+      "fence": "warning",
+      "package": "warning",
+      "dwell": "warning",
+      "dwell/stay_long": "critical"
+    },
+    "routes": {
+      "critical": {"persist": true, "snapshot": true, "clip": true, "exec": ""},
+      "warning": {"persist": true, "snapshot": true, "clip": true, "exec": ""},
+      "info": {"persist": false, "snapshot": false, "clip": false, "exec": ""}
+    }
+  },
+
+  "models": {
+    "yolo": {"path": "/opt/monitor_box/models/yolov8s-640-640.rknn", "fps": 12, "core_mask": 0},
+    "pose": {"path": "/opt/monitor_box/models/rtmpose_t-256x192-rk3576.rknn", "fps": 6, "core_mask": 0},
+    "fire": {"path": "/opt/monitor_box/models/fire_yolov8n.rknn", "labels": "/opt/monitor_box/models/fire_labels.txt", "fps": 3, "core_mask": 0}
+  },
+
+  "features": {
+    "object": {
+      "enabled": true,
+      "model": "yolo",
+      "classes": [
+        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
+        "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+        "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+        "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+        "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
+        "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake",
+        "chair", "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop",
+        "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+        "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+      ]
+    },
+    "intrusion": {
+      "enabled": false,
+      "model": "yolo",
+      "rule": "zone",
+      "trigger": "enter",
+      "classes": ["person"],
+      "sustain_sec": 0.5,
+      "zone_margin": 0.02,
+      "exit_sec": 1.0,
+      "actions": {
+        "record": {"enabled": false},
+        "speaker": {
+          "enabled": true,
+          "repeat_sec": 10,
+          "max_times": 3,
+          "file": "",
+          "device": "",
+          "command": ""
+        }
+      }
+    },
+    "fall": {
+      "enabled": false,
+      "model": "pose",
+      "pose_conf": 0.35,
+      "pose_roi": true,
+      "pose_roi_max_persons": 3,
+      "pose_roi_expand": 1.25,
+      "torso_angle_threshold": 55.0,
+      "height_ratio_threshold": 1.2,
+      "aspect_ratio_threshold": 1.05,
+      "min_kpt_conf": 0.4,
+      "kpt_visible_ratio": 0.7,
+      "min_trigger_frames": 15,
+      "recover_frames": 30,
+      "use_velocity": true,
+      "velocity_drop_px": 110.0,
+      "velocity_window": 5,
+      "min_person_score": 0.4,
+      "cooldown_s": 15.0,
+      "actions": {
+        "speaker": {
+          "enabled": true,
+          "file": "",
+          "device": "",
+          "command": ""
+        }
+      }
+    },
+    "count": {
+      "enabled": false,
+      "model": "yolo",
+      "rule": "line",
+      "mode": "crossing",
+      "classes": ["person"],
+      "line_margin": 0.03,
+      "max_lost_sec": 3,
+      "reset_hours": 0
+    },
+    "fire": {
+      "enabled": false,
+      "model": "fire",
+      "classes": ["fire", "smoke"],
+      "fire_conf": 0.45,
+      "confirm_sec": 1.0,
+      "smoke_conf": 0.45,
+      "smoke_confirm_sec": 3.0,
+      "min_area_ratio": 0.0002,
+      "hit_ratio": 0.6,
+      "min_hits": 2,
+      "gap_sec": 1.5,
+      "clear_sec": 10.0,
+      "actions": {
+        "speaker": {
+          "enabled": true,
+          "file": "",
+          "device": "",
+          "command": ""
+        }
+      }
+    },
+    "fence": {
+      "enabled": false,
+      "model": "yolo",
+      "rule": "zone",
+      "trigger": "cross",
+      "classes": ["person", "car", "truck"],
+      "arm": {
+        "mode": "always",
+        "schedule": [
+          {"days": [1, 2, 3, 4, 5, 6, 7], "start": "22:00", "end": "06:30"}
+        ]
+      },
+      "actions": {
+        "record": {"enabled": true, "max_sec": 60},
+        "speaker": {
+          "enabled": true,
+          "repeat_sec": 10,
+          "max_times": 3,
+          "file": "",
+          "device": "",
+          "command": ""
+        }
+      }
+    },
+    "dwell": {
+      "enabled": false,
+      "model": "yolo",
+      "rule": "zone",
+      "trigger": "stay",
+      "scope": "track",
+      "classes": ["person"],
+      "dwell_sec": 60,
+      "escalate_sec": 180,
+      "max_lost_sec": 3,
+      "actions": {
+        "record": {"enabled": true, "max_sec": 120},
+        "speaker": {
+          "enabled": true,
+          "start_sec": 0,
+          "repeat_sec": 20,
+          "max_times": 3,
+          "file": "",
+          "device": "",
+          "command": ""
+        },
+        "log": {"enabled": true},
+        "exec_end": ""
+      }
+    },
+    "package": {
+      "enabled": false,
+      "model": "yolo",
+      "rule": "object",
+      "classes": ["backpack", "handbag", "suitcase"],
+      "static_sec": 20
+    },
+    "locate": {
+      "enabled": true,
+      "model": "yolo",
+      "rule": "homography",
+      "classes": [
+        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
+        "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+        "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+        "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+        "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
+        "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake",
+        "chair", "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop",
+        "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+        "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+      ],
+      "groups": {
+        "person": ["person"],
+        "vehicle": ["car", "truck", "bus", "motorcycle", "bicycle"],
+        "pet": ["dog", "cat"]
+      },
+      "report_interval_sec": 5.0,
+      "direction_window_sec": 1.5,
+      "direction_change_deg": 60.0,
+      "smooth_accel": 3.0,
+      "foot_sigma_px": 3.0,
+      "foot_sigma_ratio": 0.02,
+      "trail_sec": 30,
+      "zone_margin_m": 0.3,
+      "zone_exit_sec": 1.0,
+      "zone_sustain_sec": 0.5
+    }
+  },
+
+  "regions": {
+    "zone-1": {
+      "type": "polygon",
+      "name": "警戒区",
+      "role": "private",
+      "points": [[0.10, 0.20], [0.90, 0.20], [0.90, 0.90], [0.10, 0.90]],
+      "rules": {"intrusion": {}, "dwell": {}}
+    },
+    "fence-1": {
+      "type": "polygon",
+      "name": "电子围栏",
+      "role": "private",
+      "points": [[0.20, 0.30], [0.80, 0.30], [0.80, 0.85], [0.20, 0.85]],
+      "rules": {"fence": {}}
+    },
+    "ground-1": {
+      "type": "quad",
+      "name": "地面标定",
+      "role": "ground",
+      "points": [[0.15, 0.95], [0.85, 0.95], [0.85, 0.45], [0.15, 0.45]],
+      "real_size_m": [4.0, 8.0],
+      "rules": {"locate": {}}
+    }
+  },
+
+  "ground_zones": {
+    "gz-1": {
+      "name": "门前地面",
+      "points_m": [[0.5, 0.5], [3.5, 0.5], [3.5, 3.0], [0.5, 3.0]],
+      "enabled": true,
+      "alarm_enter": false,
+      "dwell_sec": 60,
+      "groups": ["person"]
+    }
+  },
+
+  "activity": {
+    "enabled": true,
+    "learning": false,
+    "cols": 64,
+    "rows": 36,
+    "path": "/userdata/monitor_box/activity.json",
+    "save_interval_sec": 300,
+    "night_start": 20,
+    "night_end": 6
+  },
+
+  "view_guard": {
+    "enabled": true,
+    "auto_correct": true,
+    "interval_sec": 15,
+    "confirm_sec": 60,
+    "alert_sec": 600,
+    "dead_band": 0.01,
+    "max_shift": 0.2,
+    "max_rotation_deg": 6,
+    "max_scale_change": 0.1,
+    "min_visible": 0.7,
+    "dir": "/userdata/monitor_box"
+  },
+
+  "lines": {
+    "gate-1": {
+      "name": "门口",
+      "p1": [0.10, 0.50],
+      "p2": [0.90, 0.50],
+      "classes": ["person"],
+      "rules": {"count": {}}
+    }
+  }
+}
